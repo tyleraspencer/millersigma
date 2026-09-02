@@ -9,11 +9,11 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{font-family:-apple-system,BlinkMacSystemFont,Inter,"Segoe UI",Roboto,Arial,sans-serif;
-       background:#FFFFFF;color:#14213D;overflow:hidden}
+       background:#FFFFFF;color:#0C2340;overflow:hidden}
   #wrap{height:100%;width:100%;position:relative;
         border:1px solid #DCE4EE;border-radius:10px;background:#fff;overflow:hidden}
   #hd{position:absolute;top:12px;left:16px;z-index:2}
-  #hd .t{font-size:13px;font-weight:800;letter-spacing:.01em;color:#14213D}
+  #hd .t{font-size:13px;font-weight:800;letter-spacing:.01em;color:#0C2340}
   #hd .s{font-size:10.5px;font-weight:600;color:#8A98A8;margin-top:2px}
   #lg{position:absolute;top:12px;right:16px;z-index:2;display:flex;gap:14px;align-items:center}
   #lg .i{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#5B6B7F}
@@ -29,9 +29,9 @@
   <div id="hd"><div class="t">Managed spend flow</div>
     <div class="s">Channel width = managed spend · particle density = plan attainment</div></div>
   <div id="lg">
-    <div class="i"><span class="sw" style="background:#1FA37D"></span>Ahead</div>
-    <div class="i"><span class="sw" style="background:#2D5FA3"></span>On plan</div>
-    <div class="i"><span class="sw" style="background:#FF4550"></span>Behind</div>
+    <div class="i"><span class="sw" style="background:#0F6E56"></span>Ahead</div>
+    <div class="i"><span class="sw" style="background:#0097DC"></span>On plan</div>
+    <div class="i"><span class="sw" style="background:#D64545"></span>Behind</div>
   </div>
   <canvas id="cv"></canvas>
 </div>
@@ -55,9 +55,9 @@
   ];
 
   function statusColor(g) {
-    if (g >= 1.02) return "#1FA37D";   // Ahead
-    if (g >= 0.93) return "#2D5FA3";   // On plan
-    return "#FF4550";                  // Behind
+    if (g >= 1.02) return "#0F6E56";   // Ahead
+    if (g >= 0.93) return "#0097DC";   // On plan
+    return "#D64545";                  // Behind
   }
 
   var rows = FALLBACK, nodes = [], particles = [], t0 = performance.now();
@@ -168,7 +168,7 @@
     var mx0 = nodes.manifoldX0, mx1 = nodes.manifoldX1;
     var my0 = nodes.manifoldY0, my1 = nodes.manifoldY1;
     var grad = ctx.createLinearGradient(mx0, my0, mx0, my1);
-    grad.addColorStop(0, "#0B1526"); grad.addColorStop(1, "#14213D");
+    grad.addColorStop(0, "#081729"); grad.addColorStop(1, "#0C2340");
     ctx.fillStyle = grad;
     roundRect(mx0, my0, mx1 - mx0, my1 - my0, 10); ctx.fill();
 
@@ -180,7 +180,7 @@
     ctx.font = "800 " + Math.round(fs) + "px -apple-system, Inter, Arial";
     ctx.fillText("$" + total.toFixed(1) + "B", (mx0 + mx1) / 2, (my0 + my1) / 2 - 4);
     ctx.font = "700 " + Math.round(fs * 0.56) + "px -apple-system, Inter, Arial";
-    ctx.fillStyle = "#F5A6AB";
+    ctx.fillStyle = "#8FD3F4";
     ctx.fillText(mem.toFixed(2) + "M users", (mx0 + mx1) / 2, (my0 + my1) / 2 + 13);
 
     // channel terminals + labels
@@ -190,7 +190,7 @@
       ctx.beginPath(); ctx.arc(n.x1, n.y, r, 0, 2 * Math.PI); ctx.fill();
       ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 2; ctx.stroke();
 
-      ctx.textAlign = "left"; ctx.fillStyle = "#14213D";
+      ctx.textAlign = "left"; ctx.fillStyle = "#0C2340";
       ctx.font = "800 10.5px -apple-system, Inter, Arial";
       var lx = Math.min(n.x1 + r + 10, W - 118);
       ctx.fillText(n.name, lx, n.y - 3);
