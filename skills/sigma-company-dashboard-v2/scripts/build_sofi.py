@@ -249,6 +249,16 @@ def nav_button(bid, text, page, appearance="filled"):
                                       "target": {"type": "page", "page": page}}]}]}
 
 
+# Where each KPI-card child sits inside its card, as fractions of the card.
+# These MUST track the card's <Container> block in LAYOUT below -- a 12-column,
+# 10-row grid: kc 1/7 + kp 7/13 across rows 1/8, sparkline 1/13 across rows
+# 8/11. They exist so each child can sample the card's gradient at its own
+# position; if the layout moves, move these with it.
+KPI_SUBRECTS = {"kc": (0.0, 0.5, 0.0, 0.7),
+                "kp": (0.5, 1.0, 0.0, 0.7),
+                "sp": (0.0, 1.0, 0.7, 1.0)}
+
+
 def kpi_card(key, label, cur, pri, fmt, ga, gb, spark):
     """Matches the reference card() in sigma-company-dashboard's
     build_company_command_center.py. The thing that makes it read as a real KPI
@@ -256,7 +266,16 @@ def kpi_card(key, label, cur, pri, fmt, ga, gb, spark):
     it renders a delta-vs-prior badge. Dropping that is the regression Connor
     keeps catching -- two bare numbers side by side is not a comparative KPI.
     Titles and period labels are the kpi-chart's OWN native `name` (colourable
-    white), never separate text tiles or SVG images."""
+    white), never separate text tiles or SVG images.
+
+    Backgrounds: a chart element can only ever paint a SOLID
+    `style.backgroundColor` -- it takes no background image, and it cannot be
+    made transparent, so it always masks whatever the parent container painted
+    behind it (see B.gradient_sample for the probe that established this).
+    So every child samples the card's OWN ga->gb ramp at its own position and
+    fills with that. The card reads as a continuous gradient; the parent's real
+    gradient still shows in the gutters and the rounded corners."""
+    fill = lambda k: B.gradient_sample(ga, gb, *KPI_SUBRECTS[k])
     add({"id": "c-%s" % key, "kind": "container", "spacing": "small",
          "style": {"borderRadius": "round", "padding": "none"},
          "backgroundImage": {"source": {"kind": "url", "url": B.card_gradient(ga, gb)},
@@ -277,8 +296,10 @@ def kpi_card(key, label, cur, pri, fmt, ga, gb, spark):
          # renders OPAQUE WHITE, not see-through. That silently hid the
          # parent container's gradient behind two solid-white tiles on every
          # company built with this generator. Give the tile its own solid
-         # fill instead of relying on transparency.
-         "style": {"padding": "none", "backgroundColor": ga}})
+         # fill instead of relying on transparency -- sampled off the card's
+         # ramp at this tile's own position, so the card still reads as a
+         # gradient rather than two flat blocks.
+         "style": {"padding": "none", "backgroundColor": fill("kc")}})
     add({"id": "kp-%s" % key, "kind": "kpi-chart",
          "source": {"elementId": "tbl-lb", "kind": "table"},
          "columns": [{"id": "vp-%s" % key, "formula": pri, "name": "Prior TTM",
@@ -286,7 +307,7 @@ def kpi_card(key, label, cur, pri, fmt, ga, gb, spark):
          "value": {"columnId": "vp-%s" % key, "color": "#FFFFFF", "fontSize": 22},
          "name": {"text": "Prior TTM", "color": "#FFFFFF", "fontSize": 13},
          "layout": {"anchor": "middle"},
-         "style": {"padding": "none", "backgroundColor": gb}})
+         "style": {"padding": "none", "backgroundColor": fill("kp")}})
     add({"id": "sp-%s" % key, "kind": "line-chart",
          "source": {"elementId": "tbl-lb", "kind": "table"},
          "columns": [{"id": "spx-%s" % key, "formula": "[%s/Period]" % LB, "name": "Period"},
@@ -298,7 +319,15 @@ def kpi_card(key, label, cur, pri, fmt, ga, gb, spark):
                               "scale": {"type": "linear", "zero": False, "hideZeroLine": True}}},
          "color": {"by": "category", "column": "spc-%s" % key, "scheme": ["#FFFFFF"]},
          "name": {"visibility": "hidden"}, "legend": {"visibility": "hidden"},
-         "style": {"padding": "none"},
+         # Same opaque-white trap as the two kpi-charts above, and it was
+         # missed here when those were fixed: with no `backgroundColor` this
+         # line-chart painted itself WHITE and drew a WHITE trend line on it,
+         # so every card carried an empty white band across its bottom third
+         # -- on all twelve companies. The ramp sample is always darker than
+         # `gb` (the sparkline's centre projects to t~0.72, never 1.0), so the
+         # white line here is never worse-contrasted than the white value text
+         # already sitting on the Prior TTM tile.
+         "style": {"padding": "none", "backgroundColor": fill("sp")},
          "lineAreaStyle": {"interpolation": "monotone"}})
 
 

@@ -136,6 +136,54 @@ def card_gradient(a=NAVY, b=SOFI_BRIGHT, width=520, height=300) -> str:
     return datauri_svg(svg)
 
 
+# card_gradient()'s gradient axis, in fractional card coordinates. Any sampler
+# below has to use the SAME vector or the flat fills drift off the ramp the
+# parent container paints.
+_GRAD_X2, _GRAD_Y2 = 0.9, 1.0
+
+
+def _mix(a: str, b: str, t: float) -> str:
+    """sRGB lerp between two hexes. Good enough here -- both ends of every
+    card ramp are the same hue family, so the naive blend doesn't go muddy the
+    way a cross-hue lerp would."""
+    a, b = a.lstrip("#"), b.lstrip("#")
+    t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+    return "#" + "".join(
+        "%02X" % round(int(a[i:i + 2], 16)
+                       + (int(b[i:i + 2], 16) - int(a[i:i + 2], 16)) * t)
+        for i in (0, 2, 4))
+
+
+def gradient_sample(a, b, x0, x1, y0, y1) -> str:
+    """A FLAT hex sampled off the `card_gradient(a, b)` ramp at the centre of
+    the sub-rectangle (x0..x1, y0..y1), given in fractions of the card.
+
+    Why a flat sample and not a real gradient slice: chart elements cannot
+    carry a background image at all. Probed empirically against the live org
+    2026-09-02, with a throwaway workbook rendered to PNG (a `create` 200 is
+    not evidence -- see HANDOFF.md sec 6):
+
+      * `line-chart` + top-level `backgroundImage` -> create REJECTED,
+        `Invalid kind: "line-chart"` (the misleading unrecognised-field error)
+      * `kpi-chart`  + top-level `backgroundImage` -> create SUCCEEDS and the
+        tile renders OPAQUE WHITE. Accepted by the validator, painted by
+        nothing -- a fifth silent layout failure
+      * `style.backgroundImage` on either kind -> same: accepted, renders white
+      * 8-digit alpha hex (`#0B274040`, `#FFFFFF00`) as `style.backgroundColor`
+        -> create REJECTED, `Invalid kind: "kpi-chart"`. So a chart cannot be
+        made even partly see-through, and the parent container's gradient can
+        never show through one.
+
+    A chart's only working background is a solid `style.backgroundColor` hex.
+    Sampling that hex per child off one shared ramp is what makes a card read
+    as a continuous gradient instead of flat colour blocks.
+    """
+    cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+    # scalar projection of the centre onto the gradient axis, normalised
+    t = (cx * _GRAD_X2 + cy * _GRAD_Y2) / (_GRAD_X2 ** 2 + _GRAD_Y2 ** 2)
+    return _mix(a, b, t)
+
+
 def icon(path_d: str, color=SOFI_BRIGHT, size=24) -> str:
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
            f'viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" '
