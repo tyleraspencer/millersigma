@@ -3927,3 +3927,199 @@ _FM_SUMMARY = [
     (7, "Agreement Renewal Date", "12/31/2026"),
     (8, "Account Standing", "Current"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Emburse -- B2B spend & expense management SaaS (T&E, AP automation, corporate
+# cards), privately held / PE-backed roll-up (Certify + Chrome River + Nexonia
+# + Abacus heritage). No public financials to source, so every dollar figure
+# below is illustrative dressing on a realistic mid-size spend-management
+# platform scale (~$300M blended net revenue, ~$23B managed spend, ~1.4M
+# active users) -- not a real disclosed number.
+#
+#   product -> product line (real Emburse naming from emburse.com: Cards,
+#              Expense Enterprise/Professional, Invoice & AP, Travel
+#              Management, Assurance & Audit)
+#   volume  -> managed spend processed through that line ($MM)
+#   yield   -> for Cards, gross interchange earned; for every SaaS line this
+#              is 0 -- SaaS revenue is fee-based, not volume x rate, so it
+#              rides fee_base instead (the SoFi-Money fee-only pattern, see
+#              HANDOFF.md sec 8's "Net Revenue is a spread" trap)
+#   cost    -> for Cards, rewards/rebates paid back + network cost; 0 for SaaS
+#   spread  -> Cards' net interchange margin; SaaS lines have none by design
+#   fee     -> subscription/platform fees (Expense, AP, Travel, Assurance) or
+#              card program fees
+#   risk    -> out-of-policy spend rate -- the actual thing a spend-management
+#              compliance team watches, not credit risk
+#   shock   -> network/program cost shock (bps)
+# ---------------------------------------------------------------------------
+EMBURSE = {
+    "key": "emburse",
+    "name": "Emburse",
+    "title": "Managed Spend & Compliance Command Center",
+    "domain": "B2B spend & expense management SaaS",
+    "unit_noun": "user",
+    "volume_noun": "managed spend",
+    "logo_domain": "emburse.com",
+    "base_table": "Spend Ledger",
+    # Emburse's real mark is a two-tone icon (blue square, white bars) plus a
+    # separate navy wordmark -- #0097DC and #0C2340 sampled directly from the
+    # header <img> src (cdn.sanity.io/.../426919841ea68610738e9779779d780ee71f3dd0-138x24.svg),
+    # NOT the first "logo-looking" asset fetch_logo.py's heuristics found on
+    # the page (that one turned out to be a customer/partner logo -- OKI's --
+    # shown in a "trusted by" strip; always confirm against the actual
+    # <header> logo <img> alt text before sampling, not just the highest
+    # heuristic score). Unlike the eBay/Fox Media exception, the icon's own
+    # colours (blue square, white bars) already read fine on a dark gradient
+    # header -- only the navy wordmark needed flattening to white, done in the
+    # emburse_logo_white asset itself rather than via logo_chip (which has no
+    # effect: image element style has no working backgroundColor, confirmed
+    # by Fox Media's own "white" render showing no chip either).
+    "palette": {
+        "navy": "#0C2340", "navy_deep": "#081729",
+        "primary": "#0097DC", "secondary": "#005A8C",
+        "accent": "#4FC3F7", "mint": "#1FA37D",
+    },
+    "products": [
+        # name, order, balance_type, bal_base, yield, funding, fee_base,
+        # provision, delinq, opex_ratio, growth, units_base, phase, tagline,
+        # rate_label, goal_pct, status
+        ("Emburse Cards", 1, "Card Spend", 3800, .0195, .0045, 0.60, .0065, .0380,
+         .420, .145, 260, 0.0, "Corporate card issuance & real-time controls",
+         "Net interchange", 1.058, "Ahead"),
+        ("Expense Enterprise", 2, "Managed Spend", 7200, 0.0, 0.0, 9.00, 0.0, .0210,
+         .340, .062, 450, 0.6, "Configurable expense & approvals for global enterprises",
+         "ARR per seat", .968, "On plan"),
+        ("Expense Professional", 3, "Managed Spend", 4200, 0.0, 0.0, 6.44, 0.0, .0340,
+         .380, .085, 380, 1.1, "Fast expense reporting for mid-market teams",
+         "ARR per seat", .912, "Behind"),
+        ("Invoice & AP", 4, "Invoice Volume", 5600, 0.0, 0.0, 4.92, .0012, .0120,
+         .400, .118, 150, 1.7, "Invoice capture, 3-way match & vendor payments",
+         "Take rate", 1.084, "Ahead"),
+        ("Travel Management", 5, "Booked Travel", 1800, 0.0, 0.0, 2.08, 0.0, .0460,
+         .440, .038, 90, 2.2, "Corporate booking, itinerary & duty of care",
+         "Booking fee", .878, "Behind"),
+        ("Assurance & Audit", 6, "Spend Under Audit", 900, 0.0, 0.0, 1.70, 0.0, .0270,
+         .360, .072, 60, 1.3, "Continuous audit & anomaly detection on every transaction",
+         "ARR per seat", 1.021, "On plan"),
+    ],
+    "alerts": [
+        ("critical", "Card fraud pattern detected",
+         "Card-not-present velocity spike flagged across 640 Emburse Cards accounts",
+         "24m ago", "Risk & Fraud Ops", 640, "accounts flagged"),
+        ("critical", "Duplicate payment risk",
+         "AP automation flagged 58 potential duplicate vendor payments pending release",
+         "1h ago", "AP Controls", 58, "payments flagged"),
+        ("warning", "Policy exception queue backing up",
+         "412 expense reports past the 48-hour approval SLA on Expense Enterprise",
+         "3h ago", "Approvals Ops", 412, "reports past SLA"),
+        ("warning", "Off-policy travel bookings rising",
+         "Out-of-policy airfare bookings up 340 bps week over week on Travel Management",
+         "5h ago", "Travel Compliance", 340, "bps WoW"),
+        ("info", "New card program rate published",
+         "Net interchange on Emburse Cards moved 1.82% to 1.95% for new enrollments",
+         "1d ago", "Product", 13, "bps interchange increase"),
+    ],
+    "agent": ("You are an analyst covering Emburse's spend management platform -- "
+              "corporate cards, expense, AP automation, travel and audit/compliance "
+              "lines. Answer with numbers from the workbook."),
+}
+
+EMBURSE["subs"] = {
+    "Emburse Cards": [("Physical corporate cards", .48, -20, 5.2, "Ahead"),
+                      ("Virtual cards", .34, 30, 12.4, "Ahead"),
+                      ("Fleet cards", .18, -10, 2.1, "On plan")],
+    "Expense Enterprise": [("Chrome River Expense", .58, -15, 4.1, "On plan"),
+                           ("Multi-entity consolidation", .26, 20, 6.8, "Ahead"),
+                           ("Approval workflow automation", .16, 10, 3.2, "On plan")],
+    "Expense Professional": [("Certify Expense", .62, -25, 2.4, "Behind"),
+                             ("Mobile receipt capture", .24, 35, 8.6, "Ahead"),
+                             ("Certify Travel add-on", .14, -30, -2.1, "Behind")],
+    "Invoice & AP": [("Invoice capture & OCR", .44, 15, 9.4, "Ahead"),
+                     ("3-way match", .32, 5, 7.1, "Ahead"),
+                     ("Vendor payments", .24, -10, 11.2, "Ahead")],
+    "Travel Management": [("Corporate booking", .56, -20, 1.2, "On plan"),
+                          ("Duty of care & itinerary tracking", .28, 25, 4.4, "On plan"),
+                          ("Reshop savings capture", .16, 40, -3.8, "Behind")],
+    "Assurance & Audit": [("Continuous transaction audit", .54, 10, 6.2, "Ahead"),
+                          ("Anomaly & fraud detection", .30, -15, 9.8, "Ahead"),
+                          ("Policy exception review", .16, 20, 2.6, "On plan")],
+}
+
+# Business/corporate-HQ-weighted footprint (where B2B SaaS customers and their
+# finance teams concentrate), not a consumer population map.
+FOOTPRINTS["emburse"] = [("CA", .152), ("NY", .118), ("TX", .092), ("IL", .074),
+                         ("MA", .068), ("WA", .058), ("GA", .052), ("FL", .048),
+                         ("PA", .044), ("NC", .038), ("CO", .034), ("VA", .030),
+                         ("OH", .028), ("NJ", .026), ("MN", .022)]
+
+LABELS["emburse"] = {
+    "personas": ["Executive", "Compliance & Controls"],
+    "modeler_page": "Spend Planning",
+    "cohort_page": "Customer Segments",
+    "modeler_title": "Spend & Program Scenario Modeler",
+    "shock_label": "Network cost shock (bps)",
+    "kpi_revenue": "Net platform revenue ($M)",
+    "kpi_margin": "Contribution margin ($M)",
+    "kpi_volume": "Managed spend ($M)",
+    "kpi_units": "Active users (K)",
+    "driver_nim": "Avg net take rate",
+    "driver_risk": "Out-of-policy spend rate",
+    "driver_cost": "Program cost rate",
+    "driver_eff": "Platform opex ratio",
+    "seg_product": "Product line",
+    "seg_type": "Spend category",
+    "seg_credit": "Company size tier",
+    "seg_dd": "Card program enabled",
+    "seg_engage": "Usage frequency",
+    "seg_held": "Modules adopted",
+    "cohort_name": "Cohort name",
+    "kpi_cohort_size": "Users in cohort",
+    "kpi_cohort_vol": "Managed spend",
+    "kpi_cohort_rev": "Revenue per user",
+    "kpi_cohort_risk": "Avg policy-violation risk",
+    "col_volume": "Baseline managed spend",
+    "col_growth": "Spend growth %",
+    "col_yield": "Take rate Δ bps",
+    "col_cost": "Cost Δ bps",
+}
+
+SEGMENTS["emburse"] = {"Near Prime": "SMB", "Prime": "Mid-Market",
+                       "Super Prime": "Enterprise", "Exceptional": "Strategic/Global",
+                       "Daily": "Power user", "Weekly": "Regular user",
+                       "Monthly": "Occasional user", "Dormant": "Inactive"}
+
+VOCAB["emburse"] = {
+    "econ": ("Card products earn net interchange -- gross interchange less "
+             "rewards/rebates and network cost -- against managed card spend. "
+             "Software lines (expense, AP automation, travel, audit) earn "
+             "subscription and transaction fees against the spend they "
+             "process, not a volume-times-rate spread. Out-of-policy spend is "
+             "the operating risk the compliance team watches, not credit risk."),
+    "metrics": ("net platform revenue, contribution margin, managed spend and "
+               "active users"),
+    "bands": ("Company size tiers: SMB, Mid-Market, Enterprise, "
+             "Strategic/Global. Usage frequency: Power user, Regular user, "
+             "Occasional user, Inactive."),
+    "cohort_report": "users in the cohort, managed spend and average policy-violation risk",
+}
+
+# Per-unit economics for the cohort page, in DOLLARS -- annual managed spend
+# PER USER (not per customer company) by company-size tier, since the cohort
+# population is individual platform users (finance/AP staff, cardholders).
+# Retail-banking defaults would read as nonsense here (a finance analyst with
+# a $6,200 lifetime balance), so this overrides bases/rev_rate/fee_per_product.
+POP["emburse"] = {"bases": (12000, 45000, 210000, 850000), "rev_rate": 0.026,
+                  "fee_per_product": 180}
+
+# The bespoke hero plugin: a single-source arterial pipeline (spend enters
+# once via the manifold, meters out per product line) -- deliberately not a
+# radial flywheel (lending) or a two-way flow diagram (payer cost flow), so it
+# doesn't reuse another company's shape on a new industry. No ticker: there is
+# no public commodity/rate index a spend-management platform actually tracks
+# the way a bank tracks Treasury yields.
+PLUGINS["emburse"] = {"hero": "392c6a05-5df9-4892-b94d-8dea460ad08b",
+                      "hero_label": "MANAGED SPEND FLOW",
+                      "ticker": None}
+
+COMPANIES["emburse"] = EMBURSE
