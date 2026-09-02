@@ -60,6 +60,25 @@
     return "#D64545";                  // Behind
   }
 
+  var F_NAME = "800 10.5px -apple-system, Inter, Arial";
+  var F_META = "600 9.5px -apple-system, Inter, Arial";
+
+  function detailText(d) {
+    return "$" + d.bal.toFixed(1) + "B · " + Math.round(d.mem * 1000) + "K users · "
+           + Math.round(d.goal * 100) + "% plan";
+  }
+
+  // Truncate to fit. The lane end is already padded for the widest label, but
+  // a narrow embed or a long product name can still overrun -- clip rather
+  // than let text run off the right edge.
+  function fit(s, maxw) {
+    if (maxw <= 0) return "";
+    if (ctx.measureText(s).width <= maxw) return s;
+    var t = s;
+    while (t.length > 1 && ctx.measureText(t + "…").width > maxw) t = t.slice(0, -1);
+    return t + "…";
+  }
+
   var rows = FALLBACK, nodes = [], particles = [], t0 = performance.now();
   var cv = document.getElementById("cv"), ctx = cv.getContext("2d");
   var W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -99,14 +118,38 @@
   }
 
   function layout() {
-    var top = 44, bottom = H - 10;
+    // Clear the header for real. `top` used to be a hardcoded 44 while the
+    // manifold was drawn from `top - rowH*0.35`, so on a short embed the dark
+    // manifold rode up over the title. Measure the header (and the legend,
+    // which is taller when it wraps) and start the content band below both.
+    var hd = document.getElementById("hd"), lg = document.getElementById("lg");
+    var headBottom = Math.max(hd.offsetTop + hd.offsetHeight,
+                              lg.offsetTop + lg.offsetHeight);
+    var top = headBottom + 12, bottom = H - 10;
     var rowH = Math.max(18, (bottom - top) / rows.length);
     var manifoldW = Math.max(58, Math.min(W * 0.13, 96));
     var manifoldX0 = 14, manifoldX1 = manifoldX0 + manifoldW;
-    var laneEndPad = Math.min(150, W * 0.30);
-    var laneX1 = W - laneEndPad;
+
+    // Reserve the lane end for the WIDEST label actually being drawn, instead
+    // of a flat 150px that the longer "$5.6B · 150K users · 108% plan" strings
+    // overran off the right edge.
+    var labelW = 0;
+    ctx.font = F_NAME;
+    rows.forEach(function (d) {
+      labelW = Math.max(labelW, ctx.measureText(String(d.name)).width);
+    });
+    ctx.font = F_META;
+    rows.forEach(function (d) {
+      labelW = Math.max(labelW, ctx.measureText(detailText(d)).width);
+    });
+
     var maxBal = 1;
     rows.forEach(function (d) { if (d.bal > maxBal) maxBal = d.bal; });
+    var maxThick = 5 + 20;                        // thickest possible channel
+    var termGap = Math.max(7, maxThick * 0.62) + 10;
+    // cap the reservation so a very narrow embed still shows some pipeline
+    var laneEndPad = Math.min(Math.max(labelW + termGap + 10, 90), W * 0.46);
+    var laneX1 = W - laneEndPad;
 
     nodes = rows.map(function (d, i) {
       var y = top + (i + 0.5) * rowH;
@@ -118,7 +161,9 @@
       };
     });
     nodes.manifoldX0 = manifoldX0; nodes.manifoldX1 = manifoldX1;
-    nodes.manifoldY0 = top - rowH * 0.35; nodes.manifoldY1 = bottom + rowH * 0.35;
+    // span exactly the content band -- never above `top`, so it cannot reach
+    // back into the header no matter how few rows there are
+    nodes.manifoldY0 = top; nodes.manifoldY1 = bottom;
 
     particles = [];
     nodes.forEach(function (n, i) {
@@ -190,14 +235,17 @@
       ctx.beginPath(); ctx.arc(n.x1, n.y, r, 0, 2 * Math.PI); ctx.fill();
       ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 2; ctx.stroke();
 
-      ctx.textAlign = "left"; ctx.fillStyle = "#0C2340";
-      ctx.font = "800 10.5px -apple-system, Inter, Arial";
-      var lx = Math.min(n.x1 + r + 10, W - 118);
-      ctx.fillText(n.name, lx, n.y - 3);
-      ctx.font = "600 9.5px -apple-system, Inter, Arial";
-      ctx.fillStyle = "#5B6B7F";
-      ctx.fillText("$" + n.bal.toFixed(1) + "B · " + Math.round(n.mem * 1000) + "K users · "
-                   + Math.round(n.goal * 100) + "% plan", lx, n.y + 10);
+      // `lx` is where the label starts; everything from here to the right
+      // edge (less an 8px margin) is the space it has. Previously this
+      // clamped the START to W-118 and drew the full string regardless, so
+      // the longer meta lines ran off the canvas.
+      ctx.textAlign = "left";
+      var lx = n.x1 + r + 10;
+      var avail = W - 8 - lx;
+      ctx.fillStyle = "#0C2340"; ctx.font = F_NAME;
+      ctx.fillText(fit(String(n.name), avail), lx, n.y - 3);
+      ctx.fillStyle = "#5B6B7F"; ctx.font = F_META;
+      ctx.fillText(fit(detailText(n), avail), lx, n.y + 10);
     });
 
     requestAnimationFrame(frame);
