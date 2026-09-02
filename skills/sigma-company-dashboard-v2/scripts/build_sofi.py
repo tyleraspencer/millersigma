@@ -259,7 +259,7 @@ KPI_SUBRECTS = {"kc": (0.0, 0.5, 0.0, 0.7),
                 "sp": (0.0, 1.0, 0.7, 1.0)}
 
 
-def kpi_card(key, label, cur, pri, fmt, ga, gb, spark):
+def kpi_card(key, label, cur, pri, fmt, ga, gb, spark, span=(0.0, 1.0)):
     """Matches the reference card() in sigma-company-dashboard's
     build_company_command_center.py. The thing that makes it read as a real KPI
     card is that the CURRENT kpi carries `comparisonColumn` + `comparison`, so
@@ -272,13 +272,24 @@ def kpi_card(key, label, cur, pri, fmt, ga, gb, spark):
     `style.backgroundColor` -- it takes no background image, and it cannot be
     made transparent, so it always masks whatever the parent container painted
     behind it (see B.gradient_sample for the probe that established this).
-    So every child samples the card's OWN ga->gb ramp at its own position and
-    fills with that. The card reads as a continuous gradient; the parent's real
-    gradient still shows in the gutters and the rounded corners."""
-    fill = lambda k: B.gradient_sample(ga, gb, *KPI_SUBRECTS[k])
+    So every child samples a ga->gb ramp at its own position and fills with
+    that. The parent's real gradient still shows in the gutters and the
+    rounded corners.
+
+    `span` is this card's horizontal slice of the KPI ROW, as fractions of the
+    whole row -- (0, .25) for the first of four, and so on. The ramp runs once
+    across the entire row rather than restarting per card, so the four cards
+    read as a single sweep; each child therefore samples at its row-global
+    position, not its position within this card."""
+    sx0, sx1 = span
+    def fill(k):
+        x0, x1, y0, y1 = KPI_SUBRECTS[k]
+        w = sx1 - sx0
+        return B.row_gradient_sample(ga, gb, sx0 + x0 * w, sx0 + x1 * w, y0, y1)
     add({"id": "c-%s" % key, "kind": "container", "spacing": "small",
          "style": {"borderRadius": "round", "padding": "none"},
-         "backgroundImage": {"source": {"kind": "url", "url": B.card_gradient(ga, gb)},
+         "backgroundImage": {"source": {"kind": "url",
+                                        "url": B.row_gradient_slice(ga, gb, sx0, sx1)},
                              "style": {"fit": "cover"}}})
     add({"id": "kc-%s" % key, "kind": "kpi-chart",
          "source": {"elementId": "tbl-lb", "kind": "table"},
@@ -721,20 +732,33 @@ add(dict(segmented_control("ctrl-colorby", "ColorBy", "Color by",
          value=CO.lab(CFG, "seg_product")))
 
 # --- KPI row
+#
+# ONE ramp across all four cards, not four per-card ramps. Each card gets the
+# `span` slice of it that matches its place in the row, so the row reads as a
+# single left-to-right sweep. This deliberately gives up the old per-KPI accent
+# colours (the fourth card used to come out mint green); the row now carries one
+# palette end to end.
+KPI_ROW_A, KPI_ROW_B = B.row_ramp_ends(B.NAVY_DEEP, B.SOFI_BRIGHT)
+_KPI_N = 4
+_span = lambda i: (i / float(_KPI_N), (i + 1) / float(_KPI_N))
+
 kpi_card("rev", CO.lab(CFG, "kpi_revenue"), cur_("Net Revenue"), pri_("Net Revenue"),
-         MONEY_M, B.NAVY, B.SOFI_BRIGHT, "Sum([%s/Net Revenue])" % LB)
+         MONEY_M, KPI_ROW_A, KPI_ROW_B, "Sum([%s/Net Revenue])" % LB,
+         span=_span(0))
 kpi_card("cp", CO.lab(CFG, "kpi_margin"), cur_("Contribution Profit"),
-         pri_("Contribution Profit"), MONEY_M, B.NAVY_DEEP, B.SOFI_CYAN,
-         "Sum([%s/Contribution Profit])" % LB)
+         pri_("Contribution Profit"), MONEY_M, KPI_ROW_A, KPI_ROW_B,
+         "Sum([%s/Contribution Profit])" % LB, span=_span(1))
 kpi_card("bal", CO.lab(CFG, "kpi_volume"),
          'SumIf([{t}/Avg Balances], [{t}/Period Name] = "Current Period") / 12'.format(t=LB),
          'SumIf([{t}/Avg Balances], [{t}/Period Name] = "Prior Period") / 12'.format(t=LB),
-         MONEY_M, B.NAVY_DEEP, B.SOFI_BLUE,
-         'SumIf([{t}/Avg Balances], [{t}/Balance Type] = "Loans")'.format(t=LB))
+         MONEY_M, KPI_ROW_A, KPI_ROW_B,
+         'SumIf([{t}/Avg Balances], [{t}/Balance Type] = "Loans")'.format(t=LB),
+         span=_span(2))
 kpi_card("mem", CO.lab(CFG, "kpi_units"),
          'MaxIf([{t}/Members (K)], [{t}/Period Name] = "Current Period")'.format(t=LB),
          'MaxIf([{t}/Members (K)], [{t}/Period Name] = "Prior Period")'.format(t=LB),
-         NUM0, B.NAVY_DEEP, B.SOFI_MINT, "Sum([%s/Members (K)])" % LB)
+         NUM0, KPI_ROW_A, KPI_ROW_B, "Sum([%s/Members (K)])" % LB,
+         span=_span(3))
 
 # --- AI insight
 # The AI insight lives in the rail beside the copilot -- it's an AI surface, and

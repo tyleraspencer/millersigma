@@ -184,6 +184,70 @@ def gradient_sample(a, b, x0, x1, y0, y1) -> str:
     return _mix(a, b, t)
 
 
+# ---------------------------------------------------------------------------
+# ONE ramp across the whole KPI row
+#
+# card_gradient/gradient_sample above ramp within a SINGLE card, so a four-card
+# row reads as four separate gradients. The helpers below instead treat the
+# entire row as one coordinate space -- x runs 0..1 across ALL the cards, y
+# runs 0..1 down one card -- so each card renders its own slice of a single
+# continuous ramp and the row reads as one sweep left to right.
+#
+# The axis is deliberately much flatter than the per-card one: over a row four
+# cards wide, card_gradient's near-45' vector would resolve almost entirely
+# into the vertical, and the left-to-right sweep would be invisible. Keeping a
+# small vertical component stops it looking like a flat horizontal wipe.
+_ROW_GRAD_X2, _ROW_GRAD_Y2 = 1.0, 0.25
+
+
+def _row_t(x: float, y: float) -> float:
+    """Position along the row ramp (0..1) for a point in row-global space."""
+    t = (x * _ROW_GRAD_X2 + y * _ROW_GRAD_Y2) / (_ROW_GRAD_X2 ** 2 + _ROW_GRAD_Y2 ** 2)
+    return 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+
+
+def row_gradient_sample(a, b, x0, x1, y0, y1) -> str:
+    """Flat hex off the ROW-wide ramp at the centre of a row-global sub-rect.
+
+    Same hard constraint as gradient_sample() -- see its docstring for the
+    probe -- a chart element can only ever paint a solid backgroundColor, so
+    each tile gets the single colour the row ramp has at its own position.
+    """
+    return _mix(a, b, _row_t((x0 + x1) / 2.0, (y0 + y1) / 2.0))
+
+
+# How far along a->b the row ramp is allowed to travel. Every KPI tile carries
+# WHITE text (value, label, and the delta badge), so the bright end has to stay
+# dark enough to hold it. Running the ramp all the way to SOFI_BRIGHT puts the
+# last card at ~3.3:1 -- below WCAG AA's 4.5:1 for the 12-13px labels, and
+# worse than the per-card ramp this replaced. 0.80 is the furthest that still
+# clears 4.5:1 on Emburse's #0097DC; re-check with a darker brand primary if a
+# company ever looks washed out here.
+ROW_RAMP_MAX_T = 0.80
+
+
+def row_ramp_ends(a, b):
+    """(dark, bright) endpoints for the KPI row ramp, bright end capped to
+    ROW_RAMP_MAX_T so white text stays legible on the last card."""
+    return a, _mix(a, b, ROW_RAMP_MAX_T)
+
+
+def row_gradient_slice(a, b, x0, x1, width=520, height=300) -> str:
+    """SVG data URI for ONE card's container background: the x0..x1 horizontal
+    slice of the row-wide ramp. Containers (unlike charts) do take a real
+    background image, so this is what keeps the gutters and the rounded corners
+    between cards continuous with the ramp instead of stepping at each card."""
+    ca = _mix(a, b, _row_t(x0, 0.0))
+    cb = _mix(a, b, _row_t(x1, 1.0))
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="{_ROW_GRAD_Y2}">
+    <stop offset="0%" stop-color="{ca}"/><stop offset="100%" stop-color="{cb}"/>
+  </linearGradient></defs>
+  <rect width="{width}" height="{height}" fill="url(#c)"/>
+</svg>"""
+    return datauri_svg(svg)
+
+
 def icon(path_d: str, color=SOFI_BRIGHT, size=24) -> str:
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
            f'viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" '
