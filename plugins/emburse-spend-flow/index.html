@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Managed Spend Flow — Emburse Sigma Plugin</title>
+<script src="https://unpkg.com/@sigmacomputing/plugin"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,Inter,"Segoe UI",Roboto,Arial,sans-serif;
+       background:#FFFFFF;color:#14213D;overflow:hidden}
+  #wrap{height:100%;width:100%;position:relative;
+        border:1px solid #DCE4EE;border-radius:10px;background:#fff;overflow:hidden}
+  #hd{position:absolute;top:12px;left:16px;z-index:2}
+  #hd .t{font-size:13px;font-weight:800;letter-spacing:.01em;color:#14213D}
+  #hd .s{font-size:10.5px;font-weight:600;color:#8A98A8;margin-top:2px}
+  #lg{position:absolute;top:12px;right:16px;z-index:2;display:flex;gap:14px;align-items:center}
+  #lg .i{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#5B6B7F}
+  #lg .sw{width:9px;height:9px;border-radius:50%}
+  canvas{display:block;width:100%;height:100%}
+  #err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+       font-size:11px;color:#C0392B}
+  @media (prefers-reduced-motion:reduce){canvas{opacity:1}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hd"><div class="t">Managed spend flow</div>
+    <div class="s">Channel width = managed spend · particle density = plan attainment</div></div>
+  <div id="lg">
+    <div class="i"><span class="sw" style="background:#1FA37D"></span>Ahead</div>
+    <div class="i"><span class="sw" style="background:#2D5FA3"></span>On plan</div>
+    <div class="i"><span class="sw" style="background:#FF4550"></span>Behind</div>
+  </div>
+  <canvas id="cv"></canvas>
+</div>
+<script>
+(function () {
+  var client = (window.sigmaComputing && window.sigmaComputing.plugin
+                && window.sigmaComputing.plugin.client) || null;
+
+  // Every product line is a channel fed by one manifold on the left -- spend
+  // enters the platform once and is metered out per product, unlike a
+  // lending flywheel (funds orbit a hub) or a cost-flow diagram (two
+  // opposing arrows). This is a single-direction arterial pipeline, which is
+  // the shape a spend-management platform actually is.
+  var FALLBACK = [
+    {name: "Emburse Cards",        bal: 3.80, mem: 0.26, goal: 1.058},
+    {name: "Expense Enterprise",   bal: 7.20, mem: 0.45, goal: 0.968},
+    {name: "Expense Professional", bal: 4.20, mem: 0.38, goal: 0.912},
+    {name: "Invoice & AP",         bal: 5.60, mem: 0.15, goal: 1.084},
+    {name: "Travel Management",    bal: 1.80, mem: 0.09, goal: 0.878},
+    {name: "Assurance & Audit",    bal: 0.90, mem: 0.06, goal: 1.021}
+  ];
+
+  function statusColor(g) {
+    if (g >= 1.02) return "#1FA37D";   // Ahead
+    if (g >= 0.93) return "#2D5FA3";   // On plan
+    return "#FF4550";                  // Behind
+  }
+
+  var rows = FALLBACK, nodes = [], particles = [], t0 = performance.now();
+  var cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  var W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  if (client) {
+    client.config.configureEditorPanel([
+      {name: "source",  type: "element"},
+      {name: "product", type: "column", source: "source", allowMultiple: false},
+      {name: "balance", type: "column", source: "source", allowMultiple: false},
+      {name: "members", type: "column", source: "source", allowMultiple: false},
+      {name: "goal",    type: "column", source: "source", allowMultiple: false}
+    ]);
+    client.elements.subscribeToElementData("source", function (data) {
+      try {
+        var cfg = client.config.get ? client.config.get() : {};
+        var pick = function (k) { return cfg[k] && data[cfg[k]] ? data[cfg[k]] : null; };
+        var p = pick("product"), b = pick("balance"),
+            m = pick("members"), g = pick("goal");
+        if (!p || !b) return;
+        var out = [];
+        for (var i = 0; i < p.length; i++) {
+          out.push({name: String(p[i]), bal: Number(b[i]) || 0,
+                    mem: m ? Number(m[i]) || 0 : 0,
+                    goal: g ? Number(g[i]) || 0 : 0.95});
+        }
+        if (out.length) { rows = out; layout(); }
+      } catch (e) { /* keep the fallback rendering rather than blanking */ }
+    });
+  }
+
+  function resize() {
+    var r = cv.getBoundingClientRect();
+    W = r.width; H = r.height;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    layout();
+  }
+
+  function layout() {
+    var top = 44, bottom = H - 10;
+    var rowH = Math.max(18, (bottom - top) / rows.length);
+    var manifoldW = Math.max(58, Math.min(W * 0.13, 96));
+    var manifoldX0 = 14, manifoldX1 = manifoldX0 + manifoldW;
+    var laneEndPad = Math.min(150, W * 0.30);
+    var laneX1 = W - laneEndPad;
+    var maxBal = 1;
+    rows.forEach(function (d) { if (d.bal > maxBal) maxBal = d.bal; });
+
+    nodes = rows.map(function (d, i) {
+      var y = top + (i + 0.5) * rowH;
+      return {
+        name: d.name, bal: d.bal, mem: d.mem, goal: d.goal,
+        y: y, x0: manifoldX1 + 6, x1: laneX1,
+        thick: 5 + 20 * Math.sqrt(d.bal / maxBal),
+        color: statusColor(d.goal)
+      };
+    });
+    nodes.manifoldX0 = manifoldX0; nodes.manifoldX1 = manifoldX1;
+    nodes.manifoldY0 = top - rowH * 0.35; nodes.manifoldY1 = bottom + rowH * 0.35;
+
+    particles = [];
+    nodes.forEach(function (n, i) {
+      var count = Math.max(2, Math.round(3 + 7 * (n.goal || 0.8)));
+      for (var k = 0; k < count; k++) particles.push({n: i, p: k / count});
+    });
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function frame(now) {
+    var t = (now - t0) / 1000;
+    ctx.clearRect(0, 0, W, H);
+    if (!nodes.length) { requestAnimationFrame(frame); return; }
+
+    // channels (background tubes)
+    nodes.forEach(function (n) {
+      ctx.strokeStyle = n.color; ctx.globalAlpha = 0.16;
+      ctx.lineWidth = n.thick; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(n.x0, n.y); ctx.lineTo(n.x1, n.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+
+    // flowing particles, left to right, density set by plan attainment
+    particles.forEach(function (pt) {
+      var n = nodes[pt.n];
+      var u = (pt.p + t * 0.30) % 1;
+      var x = n.x0 + (n.x1 - n.x0) * u;
+      var wob = Math.sin(u * 7 + pt.p * 6) * (n.thick * 0.16);
+      var fade = 0.35 + 0.55 * Math.sin(Math.PI * u);
+      ctx.globalAlpha = Math.max(0.15, fade);
+      ctx.fillStyle = n.color;
+      ctx.beginPath(); ctx.arc(x, n.y + wob, Math.max(2, n.thick * 0.16), 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+
+    // manifold -- the single source every channel is metered from
+    var mx0 = nodes.manifoldX0, mx1 = nodes.manifoldX1;
+    var my0 = nodes.manifoldY0, my1 = nodes.manifoldY1;
+    var grad = ctx.createLinearGradient(mx0, my0, mx0, my1);
+    grad.addColorStop(0, "#0B1526"); grad.addColorStop(1, "#14213D");
+    ctx.fillStyle = grad;
+    roundRect(mx0, my0, mx1 - mx0, my1 - my0, 10); ctx.fill();
+
+    var total = 0, mem = 0;
+    nodes.forEach(function (n) { total += n.bal; mem += n.mem; });
+    var pulse = 1 + 0.02 * Math.sin(t * 1.4);
+    ctx.fillStyle = "#FFFFFF"; ctx.textAlign = "center";
+    var fs = Math.max(11, Math.min((mx1 - mx0) * 0.30, 17)) * pulse;
+    ctx.font = "800 " + Math.round(fs) + "px -apple-system, Inter, Arial";
+    ctx.fillText("$" + total.toFixed(1) + "B", (mx0 + mx1) / 2, (my0 + my1) / 2 - 4);
+    ctx.font = "700 " + Math.round(fs * 0.56) + "px -apple-system, Inter, Arial";
+    ctx.fillStyle = "#F5A6AB";
+    ctx.fillText(mem.toFixed(2) + "M users", (mx0 + mx1) / 2, (my0 + my1) / 2 + 13);
+
+    // channel terminals + labels
+    nodes.forEach(function (n) {
+      var r = Math.max(7, n.thick * 0.62);
+      ctx.fillStyle = n.color;
+      ctx.beginPath(); ctx.arc(n.x1, n.y, r, 0, 2 * Math.PI); ctx.fill();
+      ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 2; ctx.stroke();
+
+      ctx.textAlign = "left"; ctx.fillStyle = "#14213D";
+      ctx.font = "800 10.5px -apple-system, Inter, Arial";
+      var lx = Math.min(n.x1 + r + 10, W - 118);
+      ctx.fillText(n.name, lx, n.y - 3);
+      ctx.font = "600 9.5px -apple-system, Inter, Arial";
+      ctx.fillStyle = "#5B6B7F";
+      ctx.fillText("$" + n.bal.toFixed(1) + "B · " + Math.round(n.mem * 1000) + "K users · "
+                   + Math.round(n.goal * 100) + "% plan", lx, n.y + 10);
+    });
+
+    requestAnimationFrame(frame);
+  }
+
+  new ResizeObserver(resize).observe(document.getElementById("wrap"));
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
